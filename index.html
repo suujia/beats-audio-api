@@ -17,13 +17,12 @@
     	var _gaq=_gaq||[];_gaq.push(["_setAccount","UA-39254352-1"]);_gaq.push(["_trackPageview"]);(function(){var a=document.createElement("script");a.type="text/javascript";a.async=!0;a.src="https://www.google-analytics.com/ga.js";var b=document.getElementsByTagName("script")[0];b.parentNode.insertBefore(a,b)})()
     	</script>
 		<h1>Calculating BPM using Javascript</h1>
-		<p>This demo uses the browser's <strong>Audio API</strong> to determine the tempo of a song, processing a chunk of 30 seconds of a song.</p>
+		<p>This demo uses the browser's <strong>Audio API</strong> to determine the tempo of a song, processing a chunk of 30 seconds of a song. (The graphics only line up when the song is 30 seconds)</p>
 		<p>For more information, read the blog post <a href="http://joesul.li/van/beat-detection-using-web-audio/">Beat Detection Using JavaScript and the Web Audio API</a>, from where I've taken the code to perform the track analysis,
 			and <a href="https://jmperezperez.com/bpm-detection-javascript/">my blog post</a> where I explain some changes I made to
 			the original algorithm and how I used Spotify's APIs to find and match tracks.
 		</p>
 		<form>
-			<input type="text" id="query" placeholder="Type the name of a track (e.g. Beyonce - Baby Boy)">
 			<input id="song" type = "file" name="file" accept = ".mp3"/>
 			<input type="submit" value="Search track &amp; Calculate tempo">
 		</form>
@@ -50,7 +49,6 @@
 			<h3>Source Code</h3>
 			<p>You can <a href="https://github.com/JMPerez/beats-audio-api">check out the code on GitHub</a>.</p>
 		</footer>
-		<script src="spotify-web-api.js"></script>
 		<script src="script.js"></script>
 	</body>
 </html>

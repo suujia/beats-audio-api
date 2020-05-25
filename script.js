@@ -1,4 +1,3 @@
-/* global SpotifyWebApi */
 /*
   The code for finding out the BPM / tempo is taken from this post:
   http://tech.beatport.com/2014/web-audio/beat-detection-using-web-audio/
@@ -6,17 +5,12 @@
 
 'use strict';
 
-var spotifyApi = new SpotifyWebApi();
-spotifyApi.getToken().then(function(response) {
-  spotifyApi.setAccessToken(response.token);
-});
-
-var queryInput = document.querySelector('#query'),
-    audioInput = document.querySelector('#song'),  
+var audioInput = document.querySelector('#song'),  
     result = document.querySelector('#result'),
     text = document.querySelector('#text'),
     audioTag = document.querySelector('#audio'),
     playButton = document.querySelector('#play');
+
 
 function updateProgressState() {
   if (audioTag.paused) {
@@ -145,117 +139,131 @@ function getIntervals(peaks) {
   return groups;
 }
 
+function downloadSongData(content, fileName, contentType) {
+  var a = document.createElement("a");
+  var file = new Blob([content], {type: contentType});
+  a.href = URL.createObjectURL(file);
+  a.download = fileName;
+  a.click();
+}
+
 document.querySelector('form').addEventListener('submit', function(formEvent) {
   formEvent.preventDefault();
   result.style.display = 'none';
-  spotifyApi.searchTracks(
-    queryInput.value.trim(), {limit: 1})
-    .then(function(results) {
+  var uploadedSong = audioInput.files[0];
+  var url = URL.createObjectURL(uploadedSong); 
+  audioTag.src = url;
+  var duration = 30;
 
-      var uploadedSong = audioInput.files[0];
-      var url = URL.createObjectURL(uploadedSong); 
-      audioTag.src = url; 
+  // Once the metadata has been loaded, display the duration in the console
+  audioTag.addEventListener('loadedmetadata', function(){
+    duration = audioTag.duration;
+    console.log("The duration of the song is of: " + duration + " seconds");
+  },false);
 
-      var request = new XMLHttpRequest();
-      request.open('GET', url, true);
-      request.responseType = 'arraybuffer';
+  var request = new XMLHttpRequest();
+  request.open('GET', url, true);
+  request.responseType = 'arraybuffer';
 
-      var fileReader  = new FileReader;
-      var arrayBuffer;
-      fileReader.onload = function(){
-         arrayBuffer = this.result;
-         }
-      fileReader.readAsArrayBuffer(uploadedSong);
+  var fileReader  = new FileReader;
+  var arrayBuffer;
+  fileReader.onload = function(){
+    arrayBuffer = this.result;
+  }
+  fileReader.readAsArrayBuffer(uploadedSong);
 
-      request.onload = function() {
+  request.onload = function() {
 
-        // Create offline context
-        var OfflineContext = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-        var offlineContext = new OfflineContext(2, 30 * 44100, 44100);
+    // Create offline context
+    var OfflineContext = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    var offlineContext = new OfflineContext(2, parseInt(duration) * 44100, 44100);
 
-        offlineContext.decodeAudioData(arrayBuffer, function(buffer) {
-        // offlineContext.decodeAudioData(request.response, function(buffer) {
+    offlineContext.decodeAudioData(arrayBuffer, function(buffer) {
+    // offlineContext.decodeAudioData(request.response, function(buffer) {
 
-          // Create buffer source
-          var source = offlineContext.createBufferSource();
-          source.buffer = buffer;
+      // Create buffer source
+      var source = offlineContext.createBufferSource();
+      source.buffer = buffer;
 
-          // Beats, or kicks, generally occur around the 100 to 150 hz range.
-          // Below this is often the bassline.  So let's focus just on that.
+      // Beats, or kicks, generally occur around the 100 to 150 hz range.
+      // Below this is often the bassline.  So let's focus just on that.
 
-          // First a lowpass to remove most of the song.
+      // First a lowpass to remove most of the song.
 
-          var lowpass = offlineContext.createBiquadFilter();
-          lowpass.type = "lowpass";
-          lowpass.frequency.value = 150;
-          lowpass.Q.value = 1;
+      var lowpass = offlineContext.createBiquadFilter();
+      lowpass.type = "lowpass";
+      lowpass.frequency.value = 150;
+      lowpass.Q.value = 1;
 
-          // Run the output of the source through the low pass.
+      // Run the output of the source through the low pass.
 
-          source.connect(lowpass);
+      source.connect(lowpass);
 
-          // Now a highpass to remove the bassline.
+      // Now a highpass to remove the bassline.
 
-          var highpass = offlineContext.createBiquadFilter();
-          highpass.type = "highpass";
-          highpass.frequency.value = 100;
-          highpass.Q.value = 1;
+      var highpass = offlineContext.createBiquadFilter();
+      highpass.type = "highpass";
+      highpass.frequency.value = 100;
+      highpass.Q.value = 1;
 
-          // Run the output of the lowpass through the highpass.
+      // Run the output of the lowpass through the highpass.
 
-          lowpass.connect(highpass);
+      lowpass.connect(highpass);
 
-          // Run the output of the highpass through our offline context.
+      // Run the output of the highpass through our offline context.
 
-          highpass.connect(offlineContext.destination);
+      highpass.connect(offlineContext.destination);
 
-          // Start the source, and render the output into the offline conext.
+      // Start the source, and render the output into the offline conext.
 
-          source.start(0);
-          offlineContext.startRendering();
-        });
-
-        offlineContext.oncomplete = function(e) {
-          var buffer = e.renderedBuffer;
-          var peaks = getPeaks([buffer.getChannelData(0), buffer.getChannelData(1)]);
-          var groups = getIntervals(peaks);
-
-          var svg = document.querySelector('#svg');
-          svg.innerHTML = '';
-          var svgNS = 'http://www.w3.org/2000/svg';
-          var rect;
-          console.log(peaks)
-          peaks.forEach(function(peak) {
-            rect = document.createElementNS(svgNS, 'rect');
-            rect.setAttributeNS(null, 'x', (100 * peak.position / buffer.length) + '%');
-            rect.setAttributeNS(null, 'y', 0);
-            rect.setAttributeNS(null, 'width', 1);
-            rect.setAttributeNS(null, 'height', '100%');
-            svg.appendChild(rect);
-          });
-
-          rect = document.createElementNS(svgNS, 'rect');
-          rect.setAttributeNS(null, 'id', 'progress');
-          rect.setAttributeNS(null, 'y', 0);
-          rect.setAttributeNS(null, 'width', 1);
-          rect.setAttributeNS(null, 'height', '100%');
-          svg.appendChild(rect);
-
-          svg.innerHTML = svg.innerHTML; // force repaint in some browsers
-
-          var top = groups.sort(function(intA, intB) {
-            return intB.count - intA.count;
-          }).splice(0, 5);
-
-          text.innerHTML += '<div class="small">Other options are ' +
-            top.slice(1).map(function(group) {
-              return group.tempo + ' BPM (' + group.count + ')';
-            }).join(', ') +
-            '</div>';
-
-          result.style.display = 'block';
-        };
-      };
-      request.send();
+      source.start(0);
+      offlineContext.startRendering();
     });
+
+    offlineContext.oncomplete = function(e) {
+      var buffer = e.renderedBuffer;
+      var peaks = getPeaks([buffer.getChannelData(0), buffer.getChannelData(1)]);
+      var groups = getIntervals(peaks);
+
+      var svg = document.querySelector('#svg');
+      svg.innerHTML = '';
+      var svgNS = 'http://www.w3.org/2000/svg';
+      var rect;
+
+      // Download the song object
+      var jsonPeaks = JSON.stringify(peaks)
+      downloadSongData(jsonPeaks, 'json.txt', 'text/plain');
+
+      peaks.forEach(function(peak) {
+        rect = document.createElementNS(svgNS, 'rect');
+        rect.setAttributeNS(null, 'x', (100 * peak.position / buffer.length) + '%');
+        rect.setAttributeNS(null, 'y', 0);
+        rect.setAttributeNS(null, 'width', 1);
+        rect.setAttributeNS(null, 'height', '100%');
+        svg.appendChild(rect);
+      });
+
+      rect = document.createElementNS(svgNS, 'rect');
+      rect.setAttributeNS(null, 'id', 'progress');
+      rect.setAttributeNS(null, 'y', 0);
+      rect.setAttributeNS(null, 'width', 1);
+      rect.setAttributeNS(null, 'height', '100%');
+      svg.appendChild(rect);
+
+      svg.innerHTML = svg.innerHTML; // force repaint in some browsers
+
+      var top = groups.sort(function(intA, intB) {
+        return intB.count - intA.count;
+      }).splice(0, 5);
+
+      text.innerHTML += '<div class="small">Other options are ' +
+        top.slice(1).map(function(group) {
+          return group.tempo + ' BPM (' + group.count + ')';
+        }).join(', ') +
+        '</div>';
+
+      result.style.display = 'block';
+    };
+  };
+  request.send();
 });
