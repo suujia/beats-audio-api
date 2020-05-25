@@ -12,6 +12,7 @@ spotifyApi.getToken().then(function(response) {
 });
 
 var queryInput = document.querySelector('#query'),
+    audioInput = document.querySelector('#song'),  
     result = document.querySelector('#result'),
     text = document.querySelector('#text'),
     audioTag = document.querySelector('#audio'),
@@ -150,20 +151,30 @@ document.querySelector('form').addEventListener('submit', function(formEvent) {
   spotifyApi.searchTracks(
     queryInput.value.trim(), {limit: 1})
     .then(function(results) {
-      var track = results.tracks.items[0];
-      var previewUrl = track.preview_url;
-      audioTag.src = track.preview_url;
+
+      var uploadedSong = audioInput.files[0];
+      var url = URL.createObjectURL(uploadedSong); 
+      audioTag.src = url; 
 
       var request = new XMLHttpRequest();
-      request.open('GET', previewUrl, true);
+      request.open('GET', url, true);
       request.responseType = 'arraybuffer';
+
+      var fileReader  = new FileReader;
+      var arrayBuffer;
+      fileReader.onload = function(){
+         arrayBuffer = this.result;
+         }
+      fileReader.readAsArrayBuffer(uploadedSong);
+
       request.onload = function() {
 
         // Create offline context
         var OfflineContext = window.OfflineAudioContext || window.webkitOfflineAudioContext;
         var offlineContext = new OfflineContext(2, 30 * 44100, 44100);
 
-        offlineContext.decodeAudioData(request.response, function(buffer) {
+        offlineContext.decodeAudioData(arrayBuffer, function(buffer) {
+        // offlineContext.decodeAudioData(request.response, function(buffer) {
 
           // Create buffer source
           var source = offlineContext.createBufferSource();
@@ -213,6 +224,7 @@ document.querySelector('form').addEventListener('submit', function(formEvent) {
           svg.innerHTML = '';
           var svgNS = 'http://www.w3.org/2000/svg';
           var rect;
+          console.log(peaks)
           peaks.forEach(function(peak) {
             rect = document.createElementNS(svgNS, 'rect');
             rect.setAttributeNS(null, 'x', (100 * peak.position / buffer.length) + '%');
@@ -235,24 +247,11 @@ document.querySelector('form').addEventListener('submit', function(formEvent) {
             return intB.count - intA.count;
           }).splice(0, 5);
 
-          text.innerHTML = '<div id="guess">Guess for track <strong>' + track.name + '</strong> by ' +
-            '<strong>' + track.artists[0].name + '</strong> is <strong>' + Math.round(top[0].tempo) + ' BPM</strong>' +
-            ' with ' + top[0].count + ' samples.</div>';
-
           text.innerHTML += '<div class="small">Other options are ' +
             top.slice(1).map(function(group) {
               return group.tempo + ' BPM (' + group.count + ')';
             }).join(', ') +
             '</div>';
-
-          var printENBPM = function(tempo) {
-            text.innerHTML += '<div class="small">The tempo according to Spotify is ' +
-                  tempo + ' BPM</div>';
-          };
-          spotifyApi.getAudioFeaturesForTrack(track.id)
-            .then(function(audioFeatures) {
-              printENBPM(audioFeatures.tempo);
-            });
 
           result.style.display = 'block';
         };
